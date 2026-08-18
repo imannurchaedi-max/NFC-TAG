@@ -15,7 +15,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
-
+import java.io.File
+import android.net.Uri
+import androidx.core.content.FileProvider
+import android.content.ActivityNotFoundException
 class MainActivity : FlutterActivity(), NfcAdapter.ReaderCallback {
 
     private val CHANNEL = "com.example.nfc_app/nfc"
@@ -70,6 +73,29 @@ class MainActivity : FlutterActivity(), NfcAdapter.ReaderCallback {
                     val keyType = call.argument<String>("keyType") ?: "A"
                     val keyHex = call.argument<String>("keyHex") ?: ""
                     writeBlock(blockIndex, dataHex, keyType, keyHex, result)
+                }
+                "installApk" -> {
+                    val filePath = call.argument<String>("filePath")
+                    if (filePath != null) {
+                        try {
+                            val file = File(filePath)
+                            val uri = FileProvider.getUriForFile(
+                                this@MainActivity,
+                                applicationContext.packageName + ".fileprovider",
+                                file
+                            )
+                            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(uri, "application/vnd.android.package-archive")
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            }
+                            startActivity(installIntent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("INSTALL_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGS", "File path is null", null)
+                    }
                 }
                 else -> result.notImplemented()
             }

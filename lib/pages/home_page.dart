@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nfc_app/services/nfc_service.dart';
 import 'package:nfc_app/pages/card_details_page.dart';
 import 'package:nfc_app/pages/log_page.dart';
+import 'package:nfc_app/services/update_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,6 +20,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    UpdateService.checkForUpdate(context);
     _checkNfcStatus();
     _tagSub = NfcService.tagStream.listen((tagData) {
       if (_currentIndex == 0) { // Only navigate if on scan page
