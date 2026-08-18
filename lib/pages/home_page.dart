@@ -24,7 +24,7 @@ class _HomePageState extends State<HomePage> {
     _checkNfcStatus();
     _tagSub = NfcService.tagStream.listen((tagData) {
       if (_currentIndex == 0) { // Only navigate if on scan page
-        NfcService.stopNfcReader();
+        NfcService.pauseNfcReader(); // Keep currentTag alive for read/write
         Navigator.push(
           context,
           MaterialPageRoute(

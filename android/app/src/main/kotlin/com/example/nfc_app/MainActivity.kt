@@ -61,6 +61,11 @@ class MainActivity : FlutterActivity(), NfcAdapter.ReaderCallback {
                     currentTag = null
                     result.success(true)
                 }
+                "pauseNfcReader" -> {
+                    // Pause reader mode but keep currentTag alive for read/write
+                    nfcAdapter?.disableReaderMode(this)
+                    result.success(true)
+                }
                 "readSector" -> {
                     val sectorIndex = call.argument<Int>("sectorIndex") ?: 0
                     val keyType = call.argument<String>("keyType") ?: "A"

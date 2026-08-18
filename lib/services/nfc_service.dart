@@ -33,6 +33,11 @@ class NfcService {
     return await _channel.invokeMethod('stopNfcReader');
   }
 
+  /// Disables reader mode but keeps currentTag alive for read/write operations
+  static Future<bool> pauseNfcReader() async {
+    return await _channel.invokeMethod('pauseNfcReader');
+  }
+
   static Future<List<Map<String, dynamic>>> readSector(int sectorIndex, String keyType, String keyHex) async {
     try {
       final List<dynamic> result = await _channel.invokeMethod('readSector', {
