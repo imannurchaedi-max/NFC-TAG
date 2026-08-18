@@ -16,28 +16,21 @@ class CardDetailsPage extends StatefulWidget {
 class _CardDetailsPageState extends State<CardDetailsPage> {
   Map<String, dynamic>? _liveTagData;
   StreamSubscription? _tagSub;
-  bool _nfcActive = false;
+  bool _tagReceived = false; // Debounce: ignore repeat events
 
   @override
   void initState() {
     super.initState();
-    // Use the initially scanned tag data (currentTag still set from scan)
+    // Use the initially scanned data — currentTag still valid from scan
     _liveTagData = widget.tagData;
+    _tagReceived = true; // We already have a tag from initial scan
 
-    // Re-enable NFC reader so user can tap card again on Reader/Writer tab
-    _startNfcListener();
-  }
-
-  void _startNfcListener() async {
-    final started = await NfcService.startNfcReader();
-    if (mounted) setState(() => _nfcActive = started);
-
+    // Listen for new tag events (e.g., if user taps card again)
     _tagSub = NfcService.tagStream.listen((tagData) {
-      if (mounted) {
-        setState(() {
-          _liveTagData = tagData;
-        });
-        // Pause reader after tag detected, ready for read/write
+      if (!_tagReceived && mounted) {
+        _tagReceived = true;
+        setState(() => _liveTagData = tagData);
+        // Immediately pause reader to stop repeated detection
         NfcService.pauseNfcReader();
       }
     });
@@ -48,6 +41,15 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     _tagSub?.cancel();
     NfcService.stopNfcReader();
     super.dispose();
+  }
+
+  /// Re-enable NFC reader so user can tap card for read/write
+  Future<void> _waitForCard() async {
+    setState(() {
+      _tagReceived = false;
+      _liveTagData = null;
+    });
+    await NfcService.startNfcReader();
   }
 
   @override
@@ -69,16 +71,17 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
         ),
         body: Column(
           children: [
-            // NFC ready indicator banner
             _buildNfcBanner(),
             Expanded(
-              child: TabBarView(
-                children: [
-                  _buildInfoTab(),
-                  if (isMifareClassic) ReaderTab(tagData: _liveTagData!),
-                  if (isMifareClassic) WriterTab(tagData: _liveTagData!),
-                ],
-              ),
+              child: _liveTagData == null
+                  ? _buildWaitingCard()
+                  : TabBarView(
+                      children: [
+                        _buildInfoTab(),
+                        if (isMifareClassic) ReaderTab(tagData: _liveTagData!),
+                        if (isMifareClassic) WriterTab(tagData: _liveTagData!),
+                      ],
+                    ),
             ),
           ],
         ),
@@ -101,17 +104,30 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
             color: hasTag ? Colors.green : Colors.orange,
           ),
           const SizedBox(width: 8),
-          Text(
-            hasTag
-                ? 'Card ready · UID: ${_liveTagData!['uid']}'
-                : 'Tempel kartu NFC untuk membaca/menulis...',
-            style: TextStyle(
-              fontSize: 13,
-              color: hasTag ? Colors.green : Colors.orange,
-              fontWeight: FontWeight.w500,
+          Expanded(
+            child: Text(
+              hasTag
+                  ? 'Card ready · UID: ${_liveTagData!['uid']}'
+                  : 'Menunggu kartu NFC...',
+              style: TextStyle(
+                fontSize: 13,
+                color: hasTag ? Colors.green : Colors.orange,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (!hasTag) ...[
+          if (hasTag) ...[
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: _waitForCard,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                minimumSize: Size.zero,
+              ),
+              child: const Text('Ganti Kartu', style: TextStyle(fontSize: 12)),
+            ),
+          ] else ...[
             const SizedBox(width: 8),
             const SizedBox(
               width: 12,
@@ -119,6 +135,23 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
             ),
           ]
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaitingCard() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.nfc_outlined, size: 80, color: Colors.orange),
+          const SizedBox(height: 16),
+          const Text('Tempel Kartu NFC', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text('Dekatkan kartu MIFARE ke belakang ponsel'),
+          const SizedBox(height: 24),
+          const CircularProgressIndicator(color: Colors.orange),
         ],
       ),
     );
@@ -139,18 +172,9 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
           subtitle: Text(techs.map((e) => e.split('.').last).join(', ')),
         ),
         if (tagData['isMifareClassic'] == true) ...[
-          ListTile(
-            title: const Text('Size'),
-            subtitle: Text('${tagData['size']} bytes'),
-          ),
-          ListTile(
-            title: const Text('Sectors'),
-            subtitle: Text('${tagData['sectorCount']}'),
-          ),
-          ListTile(
-            title: const Text('Blocks'),
-            subtitle: Text('${tagData['blockCount']}'),
-          ),
+          ListTile(title: const Text('Size'), subtitle: Text('${tagData['size']} bytes')),
+          ListTile(title: const Text('Sectors'), subtitle: Text('${tagData['sectorCount']}')),
+          ListTile(title: const Text('Blocks'), subtitle: Text('${tagData['blockCount']}')),
         ] else ...[
           const Padding(
             padding: EdgeInsets.all(16.0),

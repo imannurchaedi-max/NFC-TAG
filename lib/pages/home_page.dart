@@ -16,6 +16,7 @@ class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
   String _nfcStatus = 'Checking...';
   StreamSubscription? _tagSub;
+  bool _isInCardDetails = false; // Prevent double navigation
 
   @override
   void initState() {
@@ -23,7 +24,8 @@ class _HomePageState extends State<HomePage> {
     UpdateService.checkForUpdate(context);
     _checkNfcStatus();
     _tagSub = NfcService.tagStream.listen((tagData) {
-      if (_currentIndex == 0) { // Only navigate if on scan page
+      if (_currentIndex == 0 && !_isInCardDetails) {
+        _isInCardDetails = true;
         NfcService.pauseNfcReader(); // Keep currentTag alive for read/write
         Navigator.push(
           context,
@@ -31,6 +33,7 @@ class _HomePageState extends State<HomePage> {
             builder: (_) => CardDetailsPage(tagData: tagData),
           ),
         ).then((_) {
+          _isInCardDetails = false;
           if (_currentIndex == 0 && _nfcStatus == 'ENABLED') {
             _startReader();
           }
