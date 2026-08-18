@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +20,60 @@ class _WriterTabState extends State<WriterTab> {
   String _keyType = 'A';
   String _inputType = 'Text'; // 'Text' or 'HEX'
   bool _isLoading = false;
+
+  StreamSubscription? _writeSub;
+
+  void _promptForCardAndWrite(int blockIndex, String finalHexData, String keyHex) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Menunggu Kartu...'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.nfc, size: 50, color: Colors.blue),
+            SizedBox(height: 16),
+            Text('Kartu terlepas. Silakan tempelkan kembali kartu Anda ke belakang HP dan TAHAN sampai selesai.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _writeSub?.cancel();
+              Navigator.pop(ctx);
+            },
+            child: const Text('BATAL'),
+          ),
+        ],
+      ),
+    );
+
+    NfcService.startNfcReader();
+
+    _writeSub = NfcService.tagStream.listen((_) async {
+      _writeSub?.cancel();
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context); // Close dialog
+      }
+
+      setState(() => _isLoading = true);
+      try {
+        final success = await NfcService.writeBlock(blockIndex, finalHexData, _keyType, keyHex);
+        if (success) {
+          await LogService.logOperation(widget.tagData['uid'], 'Write Block', 'Block $blockIndex', 'SUCCESS');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Write successful & verified!')));
+          }
+        }
+      } catch (e) {
+        await LogService.logOperation(widget.tagData['uid'], 'Write Block', 'Block $blockIndex', 'FAILED');
+        if (mounted) _showError(e.toString());
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    });
+  }
 
   Future<void> _writeBlock() async {
     final blockText = _blockController.text;
@@ -49,10 +104,8 @@ class _WriterTabState extends State<WriterTab> {
         _showError('Text cannot exceed 16 characters.');
         return;
       }
-      // Convert text to hex
       final bytes = utf8.encode(textData);
       String hexStr = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join('').toUpperCase();
-      // Pad with zeros to reach 32 characters (16 bytes)
       finalHexData = hexStr.padRight(32, '0');
     } else {
       finalHexData = _dataController.text.toUpperCase();
@@ -93,12 +146,19 @@ class _WriterTabState extends State<WriterTab> {
         }
       }
     } catch (e) {
-      await LogService.logOperation(widget.tagData['uid'], 'Write Block', 'Block $blockIndex', 'FAILED');
-      _showError(e.toString());
+      final errStr = e.toString();
+      if (errStr.contains('out of date') || errStr.contains('Tag connection lost') || errStr.contains('NO_TAG') || errStr.contains('SECURITY_ERROR')) {
+        _promptForCardAndWrite(blockIndex, finalHexData, keyHex);
+      } else {
+        await LogService.logOperation(widget.tagData['uid'], 'Write Block', 'Block $blockIndex', 'FAILED');
+        _showError(errStr);
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

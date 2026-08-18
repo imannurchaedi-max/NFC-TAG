@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nfc_app/services/nfc_service.dart';
@@ -18,6 +19,61 @@ class _ReaderTabState extends State<ReaderTab> {
   bool _isLoading = false;
   List<Map<String, dynamic>> _blocks = [];
   String _errorMessage = '';
+
+  StreamSubscription? _readSub;
+
+  void _promptForCardAndRead(int sectorIndex, String keyHex) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Menunggu Kartu...'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.nfc, size: 50, color: Colors.blue),
+            SizedBox(height: 16),
+            Text('Kartu terlepas. Silakan tempelkan kembali kartu Anda ke belakang HP dan TAHAN sampai selesai.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _readSub?.cancel();
+              Navigator.pop(ctx);
+            },
+            child: const Text('BATAL'),
+          ),
+        ],
+      ),
+    );
+
+    NfcService.startNfcReader();
+
+    _readSub = NfcService.tagStream.listen((_) async {
+      _readSub?.cancel();
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context); // Close dialog
+      }
+
+      setState(() {
+        _isLoading = true;
+        _errorMessage = '';
+        _blocks = [];
+      });
+
+      try {
+        final blocks = await NfcService.readSector(sectorIndex, _keyType, keyHex);
+        setState(() => _blocks = blocks);
+        await LogService.logOperation(widget.tagData['uid'], 'Read Sector', 'Sector $sectorIndex', 'SUCCESS');
+      } catch (e) {
+        setState(() => _errorMessage = e.toString());
+        await LogService.logOperation(widget.tagData['uid'], 'Read Sector', 'Sector $sectorIndex', 'FAILED');
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    });
+  }
 
   Future<void> _readSector() async {
     setState(() {
@@ -54,14 +110,21 @@ class _ReaderTabState extends State<ReaderTab> {
       });
       await LogService.logOperation(widget.tagData['uid'], 'Read Sector', 'Sector $sectorIndex', 'SUCCESS');
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-      });
-      await LogService.logOperation(widget.tagData['uid'], 'Read Sector', 'Sector $sectorIndex', 'FAILED');
+      final errStr = e.toString();
+      if (errStr.contains('out of date') || errStr.contains('Tag connection lost') || errStr.contains('NO_TAG') || errStr.contains('SECURITY_ERROR')) {
+        _promptForCardAndRead(sectorIndex, keyHex);
+      } else {
+        setState(() {
+          _errorMessage = errStr;
+        });
+        await LogService.logOperation(widget.tagData['uid'], 'Read Sector', 'Sector $sectorIndex', 'FAILED');
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
