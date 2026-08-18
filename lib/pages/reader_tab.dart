@@ -12,7 +12,7 @@ class ReaderTab extends StatefulWidget {
 }
 
 class _ReaderTabState extends State<ReaderTab> {
-  final _sectorController = TextEditingController(text: '0');
+  final _sectorController = TextEditingController(text: '1');
   final _keyController = TextEditingController(text: 'FFFFFFFFFFFF');
   String _keyType = 'A';
   bool _isLoading = false;
@@ -79,6 +79,7 @@ class _ReaderTabState extends State<ReaderTab> {
                   controller: _sectorController,
                   decoration: const InputDecoration(labelText: 'Sector'),
                   keyboardType: TextInputType.number,
+                  readOnly: true,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 ),
               ),

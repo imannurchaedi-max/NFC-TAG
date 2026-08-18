@@ -13,7 +13,7 @@ class WriterTab extends StatefulWidget {
 }
 
 class _WriterTabState extends State<WriterTab> {
-  final _blockController = TextEditingController();
+  final _blockController = TextEditingController(text: '5');
   final _dataController = TextEditingController();
   final _keyController = TextEditingController(text: 'FFFFFFFFFFFF');
   String _keyType = 'A';
@@ -116,8 +116,9 @@ class _WriterTabState extends State<WriterTab> {
           children: [
             TextField(
               controller: _blockController,
-              decoration: const InputDecoration(labelText: 'Block Index (e.g. 4)'),
+              decoration: const InputDecoration(labelText: 'Block Index (Locked to 5)'),
               keyboardType: TextInputType.number,
+              readOnly: true,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),
             const SizedBox(height: 16),
