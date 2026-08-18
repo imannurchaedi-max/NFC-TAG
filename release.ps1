@@ -12,6 +12,9 @@ $VERSION_JSON = "release\version.json"
 $APK_SOURCE = "build\app\outputs\flutter-apk\app-release.apk"
 $APK_DEST = "release\$APK_NAME"
 
+# Refresh PATH for rclone
+$env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
+
 Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "  NFC RW Release Script - v$Version" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
