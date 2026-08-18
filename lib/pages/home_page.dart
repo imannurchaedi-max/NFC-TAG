@@ -21,23 +21,27 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    UpdateService.checkForUpdate(context);
+    // Delay update check until after first frame so context is ready for showDialog
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.checkForUpdate(context);
+    });
     _checkNfcStatus();
     _tagSub = NfcService.tagStream.listen((tagData) {
-      if (_currentIndex == 0 && !_isInCardDetails) {
-        _isInCardDetails = true;
-        NfcService.pauseNfcReader(); // Keep currentTag alive for read/write
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CardDetailsPage(tagData: tagData),
-          ),
-        ).then((_) {
-          _isInCardDetails = false;
-          if (_currentIndex == 0 && _nfcStatus == 'ENABLED') {
-            _startReader();
-          }
-        });
+      if (_currentIndex == 0 && mounted) {
+        // Only push if HomePage is currently the top-most visible route
+        if (ModalRoute.of(context)?.isCurrent == true) {
+          NfcService.pauseNfcReader(); // Keep currentTag alive for read/write
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CardDetailsPage(tagData: tagData),
+            ),
+          ).then((_) {
+            if (_currentIndex == 0 && _nfcStatus == 'ENABLED') {
+              _startReader();
+            }
+          });
+        }
       }
     });
   }
