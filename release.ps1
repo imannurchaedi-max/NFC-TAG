@@ -37,11 +37,24 @@ Write-Host "`n[3/4] Copying APK to release folder..." -ForegroundColor Yellow
 Copy-Item $APK_SOURCE -Destination $APK_DEST -Force
 Write-Host "   Copied to $APK_DEST" -ForegroundColor Green
 
-# Step 4: Update version.json
-Write-Host "`n[4/4] Updating version.json..." -ForegroundColor Yellow
+# Step 4: Archive to Google Drive
+Write-Host "`n[4/5] Uploading backup to Google Drive..." -ForegroundColor Yellow
+$DRIVE_FOLDER_ID = "1Te2QFj5Piprhv2tNqgETWUnK5k5Pt2Oq"
+$VERSIONED_APK = "NFC_RW_v$Version.apk"
+Copy-Item $APK_SOURCE -Destination $VERSIONED_APK -Force
+rclone copy $VERSIONED_APK "gdrive:" --drive-root-folder-id $DRIVE_FOLDER_ID --progress
+Remove-Item $VERSIONED_APK -Force
+Write-Host "   Archived $VERSIONED_APK to Drive" -ForegroundColor Green
+
+# Get new File ID from Drive
+$fileId = (rclone lsjson "gdrive:" --drive-root-folder-id $DRIVE_FOLDER_ID | ConvertFrom-Json | Where-Object { $_.Name -eq $VERSIONED_APK }).ID
+Write-Host "   File ID: $fileId" -ForegroundColor Green
+
+# Step 5: Update version.json
+Write-Host "`n[5/5] Updating version.json..." -ForegroundColor Yellow
 $versionJson = @{
     version = $Version
-    apk_url = "https://raw.githubusercontent.com/imannurchaedi-max/NFC-TAG/main/release/NFC_RW.apk"
+    apk_url = "https://drive.google.com/uc?export=download&id=$fileId&confirm=t"
 } | ConvertTo-Json
 Set-Content $VERSION_JSON $versionJson
 Write-Host "   version.json updated!" -ForegroundColor Green

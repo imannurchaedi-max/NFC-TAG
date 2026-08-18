@@ -1,11 +1,9 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:dio/dio.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class UpdateService {
   static const String versionUrl = 'https://raw.githubusercontent.com/imannurchaedi-max/NFC-TAG/main/release/version.json';
@@ -67,54 +65,14 @@ class UpdateService {
   }
 
   static Future<void> _downloadAndInstall(BuildContext context, String apkUrl) async {
-    final progressNotifier = ValueNotifier<double>(0);
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Downloading Update...'),
-        content: ValueListenableBuilder<double>(
-          valueListenable: progressNotifier,
-          builder: (context, value, child) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(value: value),
-                const SizedBox(height: 8),
-                Text('${(value * 100).toStringAsFixed(0)}%'),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-
-    try {
-      final dir = await getExternalStorageDirectory(); // Android only
-      final filePath = '${dir?.path}/update.apk';
-
-      final dio = Dio();
-      await dio.download(
-        apkUrl,
-        filePath,
-        onReceiveProgress: (received, total) {
-          if (total != -1) {
-            progressNotifier.value = received / total;
-          }
-        },
-      );
-
+    final uri = Uri.parse(apkUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
       if (context.mounted) {
-        Navigator.pop(context); // Close progress dialog
-      }
-
-      // Trigger native installation
-      await _channel.invokeMethod('installApk', {'filePath': filePath});
-
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.pop(context); // Close dialog
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open download link.')),
+        );
       }
     }
   }
